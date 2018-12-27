@@ -1,0 +1,83 @@
+---
+output: 
+  flexdashboard::flex_dashboard:
+    theme: yeti
+    css: styles.css
+    logo: Bear_in_mind.png
+runtime: shiny
+---
+
+
+```{r setup, include=FALSE}
+library("shinythemes")
+library("flexdashboard")
+library("AWR.Athena")
+library("DBI")
+library("dplyr")
+library("ggplot2")
+library("shinyWidgets")
+library("shiny")
+library("plotly")
+library("scales")
+library("DT")
+library("leaflet")
+library("leaflet.extras")
+options(scipen=999)
+
+#Load Logo:
+#system("aws s3 ls")
+
+#s3.cp("s3://rbi-ace/RBI/Anti-Money-Laundering/Results/###_logo.png")
+
+# Establish connectiong to Athena
+con <- dbConnect(AWR.Athena::Athena(), region= 'eu-central-1',s3_staging_dir='s3://aws-athena-query-results-081365034257-eu-central-1/', schema_name= 'default')
+
+# !!!Install: devtools::install_github('ropensci/plotly')
+# !!!Install: devtools::install_github('hadley/ggplot2')
+
+```
+
+
+Page 1
+=====================================  
+
+Column {.sidebar}
+-------------------------------------
+```{r}
+searchInput(
+  inputId = "vendor_id", 
+  label = "Enter Vendor ID:", 
+  placeholder = "e.g: CMT", 
+  btnSearch = icon("search"), 
+  btnReset = icon("remove"), 
+  width = "100%",
+  value = "CMT"
+)
+
+dateRangeInput(inputId = "pickup_date", 
+  label = 'Date:', 
+  start = "2012-01-01", 
+  end = "2012-01-31", 
+  min = "2012-01-01",
+  max = "2013-12-31")
+
+noUiSliderInput(
+    inputId = "passengers",
+    min = 0, max = 10,
+    value = c(2,8),
+    step = 1
+  )
+```
+
+
+Row {data-height=600}
+-------------------------------------
+
+### Map Pick Up Location
+
+```{r}
+renderPrint({
+  print(as.character(input$passengers[1]))
+})
+
+```

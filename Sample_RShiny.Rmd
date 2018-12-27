@@ -1,0 +1,144 @@
+---
+output: 
+  flexdashboard::flex_dashboard:
+    theme: yeti
+    css: styles.css
+    logo: Bear_in_mind.png
+runtime: shiny
+---
+
+
+```{r setup, include=FALSE}
+library("shinythemes")
+library("flexdashboard")
+library("AWR.Athena")
+library("DBI")
+library("dplyr")
+library("ggplot2")
+library("shinyWidgets")
+library("shiny")
+library("plotly")
+library("scales")
+library("DT")
+library("leaflet")
+library("leaflet.extras")
+options(scipen=999)
+
+#Load Logo:
+#system("aws s3 ls")
+
+# Establish connectiong to Athena
+con <- dbConnect(AWR.Athena::Athena(), region= 'eu-central-1',s3_staging_dir='s3://aws-athena-query-results-081365034257-eu-central-1/', schema_name= 'default')
+
+# !!!Install: devtools::install_github('ropensci/plotly', force = TRUE)
+# !!!Install: devtools::install_github('hadley/ggplot2', force = TRUE)
+```
+
+
+Page 1
+=====================================  
+
+Column {.sidebar}
+-------------------------------------
+```{r}
+searchInput(
+  inputId = "vendor_id", 
+  label = "Enter Vendor ID:", 
+  placeholder = "e.g: CMT", 
+  btnSearch = icon("search"), 
+  btnReset = icon("remove"), 
+  width = "100%",
+  value = "CMT"
+)
+
+dateRangeInput(inputId = "pickup_date", 
+  label = 'Date:', 
+  start = "2012-01-01", 
+  end = "2012-03-31", 
+  min = "2012-01-01",
+  max = "2013-12-31")
+
+noUiSliderInput(
+    inputId = "passengers",
+    min = 0, max = 10,
+    value = c(3,6),
+    step = 1
+)
+
+
+```
+
+
+Column {data-width=600}
+-------------------------------------
+    
+### Number of Trips by Payment Type
+    
+```{r}
+renderPlot({
+pmttype <- dbGetQuery(con, paste0("select vendor_id, payment_type, count(*) as count from my_database.nyc_taxi where vendor_id like '", input$vendor_id, "' and pickup_datetime between timestamp '", input$pickup_date[1], " 00:00:00' and timestamp '", input$pickup_date[2], " 00:00:00' and passenger_count between ", input$passengers[1], " and ", input$passengers[2], " group by payment_type, vendor_id"))
+
+p <- ggplot(pmttype, aes(x="", y=count, fill=payment_type))+geom_bar(width = 1, stat = 'identity') + coord_polar("y", start=0)
+p                
+})
+```
+   
+Column {data-width=450}
+-------------------------------------
+   
+### Total Tip Amount per Day
+
+```{r}
+
+renderPlot({
+  
+tipamt <- dbGetQuery(con, paste0("select day_diff, count(*) as cnt_per_day
+from (select date_diff('day', timestamp '", input$pickup_date[1] , " 00:00:00', pickup_datetime) as day_diff from my_database.nyc_taxi  where vendor_id like '", input$vendor_id ,"' and pickup_datetime between timestamp '", input$pickup_date[1] , " 00:00:00' and timestamp '", input$pickup_date[2]," 00:00:00' and passenger_count between ", input$passengers[1], " and ", input$passengers[2], ") group by day_diff"))
+
+pl <- ggplot(tipamt, aes(x=day_diff, y=cnt_per_day))+geom_bar(stat = 'identity')
+pl
+
+})
+
+```
+
+### Total Taxi Mileage per Day 
+    
+```{r}
+
+renderPlot({
+  
+mileage <- dbGetQuery(con, paste0("select day_diff, sum(trip_distance) as total_mil_per_day
+from (select trip_distance, date_diff('day', timestamp '", input$pickup_date[1] , " 00:00:00', pickup_datetime) as day_diff from my_database.nyc_taxi  where vendor_id like '", input$vendor_id ,"' and pickup_datetime between timestamp '", input$pickup_date[1] , " 00:00:00' and timestamp '", input$pickup_date[2]," 00:00:00' and passenger_count between ", input$passengers[1], " and ", input$passengers[2], ") group by day_diff"))
+
+pl <- ggplot(mileage, aes(x=day_diff, y=total_mil_per_day))+geom_line()
+pl
+
+})
+```
+
+Page 2 {data-orientation=rows}
+=====================================     
+   
+Row {data-height=600}
+-------------------------------------
+
+### Map Pick Up Location
+
+```{r}
+renderLeaflet({
+y <- dbGetQuery(con, paste0("select pickup_longitude, pickup_latitude, count(*) as count
+from (select round(pickup_longitude, 3) as pickup_longitude, round(pickup_latitude, 3) as pickup_latitude from my_database.nyc_taxi where vendor_id like '", input$vendor_id, "' and pickup_datetime between timestamp '", input$pickup_date[1], " 00:00:00' and timestamp '", input$pickup_date[2], " 00:00:00' and passenger_count between ", input$passengers[1], " and ", input$passengers[2], ") group by pickup_longitude, pickup_latitude"))
+
+ysub <- subset(y, y$count > 1 & y$pickup_longitude != 0 & y$pickup_latitude != 0)
+
+
+leaflet(ysub) %>%  # Add default OpenStreetMap map tiles
+  setView(-73.99,40.745, 14) %>%
+  addProviderTiles(providers$CartoDB.DarkMatter) %>%
+  #addMarkers(lng=ysub$pickup_longitude, lat=ysub$pickup_latitude, popup="The birthplace of R")
+  addHeatmap(lng = ~pickup_longitude, lat = ~pickup_latitude, intensity = ~(count/max(ysub$count)))
+}
+)
+
+```
