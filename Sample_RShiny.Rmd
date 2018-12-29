@@ -75,11 +75,17 @@ Column {data-width=600}
 ### Number of Trips by Payment Type
     
 ```{r}
-renderPlot({
+renderPlotly({
 pmttype <- dbGetQuery(con, paste0("select vendor_id, payment_type, count(*) as count from my_database.nyc_taxi where vendor_id like '", input$vendor_id, "' and pickup_datetime between timestamp '", input$pickup_date[1], " 00:00:00' and timestamp '", input$pickup_date[2], " 00:00:00' and passenger_count between ", input$passengers[1], " and ", input$passengers[2], " group by payment_type, vendor_id"))
 
-p <- ggplot(pmttype, aes(x="", y=count, fill=payment_type))+geom_bar(width = 1, stat = 'identity') + coord_polar("y", start=0)
-p                
+#p <- ggplot(pmttype, aes(x="", y=count, fill=payment_type))+geom_bar(width = 1, stat = 'identity') + coord_polar("y", start=0)
+#ggplotly(p)
+
+p <- plot_ly(pmttype, labels = ~payment_type, values = ~count, type = 'pie') %>%
+  layout(xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+         yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+p
+
 })
 ```
    
@@ -90,13 +96,13 @@ Column {data-width=450}
 
 ```{r}
 
-renderPlot({
+renderPlotly({
   
 tipamt <- dbGetQuery(con, paste0("select day_diff, count(*) as cnt_per_day
 from (select date_diff('day', timestamp '", input$pickup_date[1] , " 00:00:00', pickup_datetime) as day_diff from my_database.nyc_taxi  where vendor_id like '", input$vendor_id ,"' and pickup_datetime between timestamp '", input$pickup_date[1] , " 00:00:00' and timestamp '", input$pickup_date[2]," 00:00:00' and passenger_count between ", input$passengers[1], " and ", input$passengers[2], ") group by day_diff"))
 
-pl <- ggplot(tipamt, aes(x=day_diff, y=cnt_per_day))+geom_bar(stat = 'identity')
-pl
+pl <- ggplot(tipamt, aes(x=day_diff, y=cnt_per_day))+geom_bar(stat = 'identity', colour="#009900")
+ggplotly(pl)
 
 })
 
@@ -106,13 +112,13 @@ pl
     
 ```{r}
 
-renderPlot({
+renderPlotly({
   
 mileage <- dbGetQuery(con, paste0("select day_diff, sum(trip_distance) as total_mil_per_day
 from (select trip_distance, date_diff('day', timestamp '", input$pickup_date[1] , " 00:00:00', pickup_datetime) as day_diff from my_database.nyc_taxi  where vendor_id like '", input$vendor_id ,"' and pickup_datetime between timestamp '", input$pickup_date[1] , " 00:00:00' and timestamp '", input$pickup_date[2]," 00:00:00' and passenger_count between ", input$passengers[1], " and ", input$passengers[2], ") group by day_diff"))
 
-pl <- ggplot(mileage, aes(x=day_diff, y=total_mil_per_day))+geom_line()
-pl
+pl <- ggplot(mileage, aes(x=day_diff, y=total_mil_per_day))+geom_line(colour="#0066CC")
+ggplotly(pl)
 
 })
 ```
